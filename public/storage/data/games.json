@@ -148,6 +148,14 @@
       "categories": []
     },
     {
+      "label": "Ehmorris Lander",
+      "url": "/iframe.html?url=/embed.html#https://ehmorris.com/lander/",
+      "imageUrl": "/storage/images/main/ehmorris.png",
+      "categories": [
+        "skill"
+      ]
+    },
+    {
       "label": "Highway Racer",
       "url": "/iframe.html?url=/storage/ag/g/highway-racer",
       "imageUrl": "/storage/images/main/highway-racer.jpeg",
