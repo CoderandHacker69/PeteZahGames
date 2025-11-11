@@ -355,6 +355,36 @@
     </div>
 
     <div class="section">
+      <div class="section-title"><i class="fas fa-poll"></i> Profile Survey</div>
+      <form id="survey-form">
+        <div class="form-group">
+          <label for="survey-age">Your Age</label>
+          <input type="number" id="survey-age" name="age" min="1" max="120" class="form-input" required>
+        </div>
+        <div class="form-group" id="school-group" style="display:none;">
+          <label for="survey-school">Your School</label>
+          <input type="text" id="survey-school" name="school" class="form-input">
+        </div>
+        <div class="form-group">
+          <label for="survey-favgame">Favorite Game Genre</label>
+          <select id="survey-favgame" name="favgame" class="form-input">
+            <option value="action">Action</option>
+            <option value="adventure">Adventure</option>
+            <option value="puzzle">Puzzle</option>
+            <option value="sports">Sports</option>
+            <option value="strategy">Strategy</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="survey-mood">How are you feeling today?</label>
+          <input type="text" id="survey-mood" name="mood" class="form-input" maxlength="40">
+        </div>
+        <button type="submit" class="btn btn-primary">Save Survey</button>
+      </form>
+    </div>
+
+    <div class="section">
       <div class="section-title"><i class="fas fa-key"></i> Change Password</div>
       <div class="form-group">
         <label for="current-password">Current Password</label>
@@ -383,8 +413,8 @@
     <div class="section">
       <div class="section-title"><i class="fas fa-bolt"></i> Quick Proxy & Tools</div>
       <div class="btn-group" style="margin-bottom:16px;">
-        <button class="btn btn-secondary quick-proxy-btn" data-url="/search.html"><i class="fas fa-globe"></i> Open Proxy</button>
-        <button class="btn btn-secondary quick-proxy-btn" data-url="/static/scram-embed.html#https://byod.petezahgames.com/pages/other/ai/"><i class="fas fa-robot"></i> AI Playground</button>
+        <button class="btn btn-secondary quick-proxy-btn" data-url="/bare/"><i class="fas fa-globe"></i> Open Proxy</button>
+        <button class="btn btn-secondary quick-proxy-btn" data-url="/pages/other/ai/index.html"><i class="fas fa-robot"></i> AI Playground</button>
         <button class="btn btn-secondary quick-proxy-btn" data-url="/pages/g.html"><i class="fas fa-gamepad"></i> Games</button>
       </div>
       <div class="form-group">
@@ -522,7 +552,6 @@
             if (filtered.length > 0) {
               list.innerHTML = filtered.map(user => {
                 const date = new Date(user.created_at);
-                // Show role: Owner, Admin, Staff, or User
                 let role = '';
                 if (user.is_admin === 1 && user.email === (window.lastAdminUsers && window.lastAdminUsers[0] && window.lastAdminUsers[0].email ? window.lastAdminUsers[0].email : '')) {
                   role = '<span style="color:#fbbf24">Owner</span>';
@@ -531,6 +560,7 @@
                 } else if (user.is_admin === 2) {
                   role = '<span style="color:#8b5cf6">Staff</span>';
                 }
+                let ipDisplay = isCurrentUserAdmin() ? (user.ip || 'N/A') : '';
                 return `
                   <div class="user-item">
                     <img src="${user.avatar_url || '/storage/images/main/profile.png'}" alt="Profile" style="width:40px;height:40px;border-radius:50%;margin-right:12px;object-fit:cover;">
@@ -538,7 +568,7 @@
                       <div class="email"><b>${user.username || 'No username'}</b> <span style="color:#99aabb;font-size:0.8em;">(${user.email})</span></div>
                       <div class="meta">
                         Joined: ${date.toLocaleDateString()} • School: ${user.school || 'N/A'} • Age: ${user.age || 'N/A'} ${role}
-                        <br>IP: ${user.ip || 'N/A'}
+                        ${isCurrentUserAdmin() ? `<br>IP: ${ipDisplay}` : ''}
                       </div>
                     </div>
                     <button class="btn btn-secondary" onclick="manageUser('${user.id}')">Manage</button>
@@ -574,6 +604,7 @@
       } else if (user.is_admin === 2) {
         role = '<span style="color:#8b5cf6">Staff</span>';
       }
+      let ipDisplay = isCurrentUserAdmin() ? (user.ip || 'N/A') : '';
       content.innerHTML = `
         <div style='display:flex;align-items:center;gap:12px;margin-bottom:10px;'>
           <img src="${user.avatar_url || '/storage/images/main/profile.png'}" alt="Profile" style="width:48px;height:48px;border-radius:50%;object-fit:cover;">
@@ -582,7 +613,7 @@
             <span style='color:#99aabb;font-size:0.9em;'>${user.email}</span>
           </div>
         </div>
-        <div style='color:#99aabb;font-size:0.95em;'>School: ${user.school || 'N/A'}<br>Age: ${user.age || 'N/A'}<br>Joined: ${new Date(user.created_at).toLocaleDateString()}<br>IP: ${user.ip || 'N/A'}<br>${role}</div>
+        <div style='color:#99aabb;font-size:0.95em;'>School: ${user.school || 'N/A'}<br>Age: ${user.age || 'N/A'}<br>Joined: ${new Date(user.created_at).toLocaleDateString()}${isCurrentUserAdmin() ? `<br>IP: ${ipDisplay}` : ''}<br>${role}</div>
       `;
       modal.style.display = 'flex';
     };
@@ -855,7 +886,6 @@
       } catch {}
     })();
 
-    // Quick Proxy & Tools button logic
     document.querySelectorAll('.quick-proxy-btn').forEach(btn => {
       btn.onclick = function(e) {
         e.preventDefault();
@@ -867,6 +897,125 @@
         }
       };
     });
+
+    const style = document.createElement('style');
+    style.textContent = `
+      select.form-input, select#survey-favgame {
+        background: rgba(30,41,59,0.7);
+        color: #fff;
+        border: 1px solid #3a4a5a;
+        border-radius: 12px;
+        padding: 10px 16px;
+        font-size: 1rem;
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        outline: none;
+        transition: border-color 0.3s;
+        box-shadow: none;
+      }
+      select.form-input:focus, select#survey-favgame:focus {
+        border-color: #3b82f6;
+        background: rgba(30,41,59,0.9);
+      }
+      select.form-input option, select#survey-favgame option {
+        color: #222;
+        background: #fff;
+      }
+    `;
+    document.head.appendChild(style);
+
+    function isCurrentUserAdmin() {
+      return isAdmin && userData && (userData.app_metadata?.role === 'Owner' || userData.app_metadata?.role === 'Admin');
+    }
+    const origLoadUsers = loadUsers;
+    loadUsers = async function() {
+      try {
+        const response = await fetch('/api/admin/users', { credentials: 'include' });
+        const data = await response.json();
+        if (response.ok) {
+          let users = data.users || [];
+          window.lastAdminUsers = users;
+          const list = document.getElementById('users-list');
+          const searchInput = document.getElementById('user-search');
+          function renderUsers(filter = '') {
+            let filtered = users;
+            if (filter) {
+              const f = filter.toLowerCase();
+              filtered = users.filter(u =>
+                (u.username || '').toLowerCase().includes(f) ||
+                (u.email || '').toLowerCase().includes(f) ||
+                (u.school || '').toLowerCase().includes(f)
+              );
+            }
+            if (filtered.length > 0) {
+              list.innerHTML = filtered.map(user => {
+                const date = new Date(user.created_at);
+                let role = '';
+                if (user.is_admin === 1 && user.email === (window.lastAdminUsers && window.lastAdminUsers[0] && window.lastAdminUsers[0].email ? window.lastAdminUsers[0].email : '')) {
+                  role = '<span style="color:#fbbf24">Owner</span>';
+                } else if (user.is_admin === 3) {
+                  role = '<span style="color:#3b82f6">Admin</span>';
+                } else if (user.is_admin === 2) {
+                  role = '<span style="color:#8b5cf6">Staff</span>';
+                }
+                let ipDisplay = isCurrentUserAdmin() ? (user.ip || 'N/A') : '';
+                return `
+                  <div class="user-item">
+                    <img src="${user.avatar_url || '/storage/images/main/profile.png'}" alt="Profile" style="width:40px;height:40px;border-radius:50%;margin-right:12px;object-fit:cover;">
+                    <div class="info">
+                      <div class="email"><b>${user.username || 'No username'}</b> <span style="color:#99aabb;font-size:0.8em;">(${user.email})</span></div>
+                      <div class="meta">
+                        Joined: ${date.toLocaleDateString()} • School: ${user.school || 'N/A'} • Age: ${user.age || 'N/A'} ${role}
+                        ${isCurrentUserAdmin() ? `<br>IP: ${ipDisplay}` : ''}
+                      </div>
+                    </div>
+                    <button class="btn btn-secondary" onclick="manageUser('${user.id}')">Manage</button>
+                  </div>
+                `;
+              }).join('');
+            } else {
+              list.innerHTML = '<div style="color: #99aabb; text-align: center; padding: 20px;">No users found</div>';
+            }
+          }
+          renderUsers();
+          searchInput.oninput = e => renderUsers(e.target.value);
+        }
+      } catch (error) {
+        console.error('Failed to load users:', error);
+      }
+    };
+    const origManageUser = window.manageUser;
+    window.manageUser = function(userId) {
+      const user = (window.lastAdminUsers || []).find(u => u.id === userId);
+      if (!user) {
+        showPopup('User not found', 'error');
+        return;
+      }
+      currentAdminUserId = userId;
+      const modal = document.getElementById('admin-user-modal');
+      const content = document.getElementById('admin-user-modal-content');
+      let role = '';
+      if (user.is_admin === 1 && user.email === (window.lastAdminUsers && window.lastAdminUsers[0] && window.lastAdminUsers[0].email ? window.lastAdminUsers[0].email : '')) {
+        role = '<span style="color:#fbbf24">Owner</span>';
+      } else if (user.is_admin === 3) {
+        role = '<span style="color:#3b82f6">Admin</span>';
+      } else if (user.is_admin === 2) {
+        role = '<span style="color:#8b5cf6">Staff</span>';
+      }
+      let ipDisplay = isCurrentUserAdmin() ? (user.ip || 'N/A') : '';
+      content.innerHTML = `
+        <div style='display:flex;align-items:center;gap:12px;margin-bottom:10px;'>
+          <img src="${user.avatar_url || '/storage/images/main/profile.png'}" alt="Profile" style="width:48px;height:48px;border-radius:50%;object-fit:cover;">
+          <div>
+            <b>${user.username || 'No username'}</b><br>
+            <span style='color:#99aabb;font-size:0.9em;'>${user.email}</span>
+          </div>
+        </div>
+        <div style='color:#99aabb;font-size:0.95em;'>School: ${user.school || 'N/A'}<br>Age: ${user.age || 'N/A'}<br>Joined: ${new Date(user.created_at).toLocaleDateString()}${isCurrentUserAdmin() ? `<br>IP: ${ipDisplay}` : ''}<br>${role}</div>
+      `;
+      modal.style.display = 'flex';
+    };
 
     loadProfile();
   </script>

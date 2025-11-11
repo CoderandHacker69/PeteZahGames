@@ -278,14 +278,14 @@ app.post("/api/update-profile", (req, res) => {
     return res.status(401).json({ error: "Unauthorized" });
   }
   try {
-    const { username, bio } = req.body;
+    const { username, bio, age, school, favgame, mood } = req.body;
     const now = Date.now();
-    db.prepare('UPDATE users SET username = ?, bio = ?, updated_at = ? WHERE id = ?').run(username || null, bio || null, now, req.session.user.id);
+    db.prepare('UPDATE users SET username = ?, bio = ?, age = ?, school = ? WHERE id = ?')
+      .run(username || null, bio || null, age || null, school || null, req.session.user.id);
     req.session.user.username = username;
     req.session.user.bio = bio;
     return res.status(200).json({ message: "Profile updated" });
   } catch (error) {
-    console.error('Update error:', error);
     return res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -456,17 +456,15 @@ app.get("/api/admin/users", (req, res) => {
       return res.status(403).json({ error: "Admin access required" });
     }
     const users = db.prepare(`
-      SELECT id, email, username, created_at, is_admin, avatar_url, bio, school, age
+      SELECT id, email, username, created_at, is_admin, avatar_url, bio, school, age, ip
       FROM users
       ORDER BY created_at DESC
       LIMIT 100
     `).all();
     const usersWithExtras = users.map(u => {
-      let ip = null;
+      let ip = 'N/A';
       if (user.is_admin === 1 && user.email === process.env.ADMIN_EMAIL) {
         ip = u.ip || 'N/A';
-      } else {
-        ip = 'N/A';
       }
       return {
         ...u,

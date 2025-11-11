@@ -25,7 +25,6 @@ export async function signinHandler(req, res) {
       return res.status(401).json({ error: 'Please verify your email before logging in. Check your inbox for the verification link.' });
     }
 
-    // If user has no IP, update it on login
     let ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || req.socket.remoteAddress || null;
     if (ip && typeof ip === 'string' && ip.includes(',')) ip = ip.split(',')[0].trim();
     if (ip && ip.startsWith('::ffff:')) ip = ip.replace('::ffff:', '');
