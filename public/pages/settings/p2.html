@@ -380,6 +380,20 @@
       </div>
     </div>
 
+    <div class="section">
+      <div class="section-title"><i class="fas fa-bolt"></i> Quick Proxy & Tools</div>
+      <div class="btn-group" style="margin-bottom:16px;">
+        <button class="btn btn-secondary quick-proxy-btn" data-url="/search.html"><i class="fas fa-globe"></i> Open Proxy</button>
+        <button class="btn btn-secondary quick-proxy-btn" data-url="/static/scram-embed.html#https://byod.petezahgames.com/pages/other/ai/"><i class="fas fa-robot"></i> AI Playground</button>
+        <button class="btn btn-secondary quick-proxy-btn" data-url="/pages/g.html"><i class="fas fa-gamepad"></i> Games</button>
+      </div>
+      <div class="form-group">
+        <label for="favorite-games">Favorite Games (comma separated)</label>
+        <input type="text" id="favorite-games" placeholder="e.g. Slope, 2048, Run 3">
+      </div>
+      <button class="btn btn-primary" id="save-extra-btn"><i class="fas fa-save"></i> Save Extras</button>
+    </div>
+
     <div class="section admin-section" id="admin-section" style="display: none;">
       <div class="section-title"><i class="fas fa-shield-alt"></i> Admin Area</div>
       <div class="stats-grid">
@@ -396,7 +410,9 @@
           <div class="label">Changelog Entries</div>
         </div>
       </div>
-      <div class="section-title" style="font-size: 1rem; margin-top: 24px;">Recent Users</div>
+      <div class="section-title" style="font-size: 1rem; margin-top: 24px;">User Search</div>
+      <input type="text" id="user-search" class="form-input" placeholder="Search users by name, email, or school..." style="margin-bottom: 16px; width: 100%; background:rgba(30,41,59,0.7); border-radius:12px; border:1px solid #3a4a5a; color:#fff; padding:10px 16px; font-size:1rem;">
+      <div class="section-title" style="font-size: 1rem; margin-top: 8px;">Recent Users</div>
       <div class="users-list" id="users-list">
         <div style="color: #99aabb; text-align: center; padding: 20px;">Loading...</div>
       </div>
@@ -406,6 +422,20 @@
       <div class="section-title"><i class="fas fa-exclamation-triangle"></i> Danger Zone</div>
       <p style="color: #99aabb; margin-bottom: 16px; font-size: 0.9rem;">Permanently delete your account. This action cannot be undone.</p>
       <button class="btn btn-danger btn-full" id="delete-account-btn"><i class="fas fa-trash"></i> Delete Account</button>
+    </div>
+  </div>
+
+  <div id="admin-user-modal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(10,29,55,0.85);z-index:10000;align-items:center;justify-content:center;">
+    <div style="background:linear-gradient(135deg,#111117,#182129);border-radius:24px;padding:32px;max-width:400px;width:90vw;box-shadow:0 12px 25px rgba(0,0,0,0.7);border:1px solid #3a4a5a;position:relative;">
+      <button id="close-admin-user-modal" style="position:absolute;top:16px;right:16px;background:transparent;border:none;color:#99aabb;font-size:24px;cursor:pointer;">&times;</button>
+      <h2 style="font-size:1.3rem;font-weight:600;margin-bottom:16px;">Manage User</h2>
+      <div id="admin-user-modal-content" style="margin-bottom:20px;"></div>
+      <div class="btn-group">
+        <button class="btn btn-secondary" id="make-staff-btn">Make Staff</button>
+        <button class="btn btn-secondary" id="suspend-user-btn">Suspend</button>
+        <button class="btn btn-danger" id="ban-user-btn">Ban (IP)</button>
+        <button class="btn btn-danger" id="delete-user-btn">Delete</button>
+      </div>
     </div>
   </div>
 
@@ -423,7 +453,8 @@
         
         if (response.ok) {
           userData = data.user;
-          isAdmin = data.user.app_metadata?.is_admin || false;
+          const role = data.user.app_metadata?.role;
+          isAdmin = role === 'Owner' || role === 'Admin' || role === 'Staff';
           
           document.getElementById('email-display').textContent = data.user.email;
           document.getElementById('username').value = data.user.user_metadata?.name || '';
@@ -474,27 +505,125 @@
         const response = await fetch('/api/admin/users', { credentials: 'include' });
         const data = await response.json();
         if (response.ok) {
+          let users = data.users || [];
+          window.lastAdminUsers = users;
           const list = document.getElementById('users-list');
-          if (data.users && data.users.length > 0) {
-            list.innerHTML = data.users.map(user => {
-              const date = new Date(user.created_at);
-              return `
-                <div class="user-item">
-                  <div class="info">
-                    <div class="email">${user.email}</div>
-                    <div class="meta">${user.username || 'No username'} • ${date.toLocaleDateString()} ${user.is_admin ? '• Admin' : ''}</div>
+          const searchInput = document.getElementById('user-search');
+          function renderUsers(filter = '') {
+            let filtered = users;
+            if (filter) {
+              const f = filter.toLowerCase();
+              filtered = users.filter(u =>
+                (u.username || '').toLowerCase().includes(f) ||
+                (u.email || '').toLowerCase().includes(f) ||
+                (u.school || '').toLowerCase().includes(f)
+              );
+            }
+            if (filtered.length > 0) {
+              list.innerHTML = filtered.map(user => {
+                const date = new Date(user.created_at);
+                // Show role: Owner, Admin, Staff, or User
+                let role = '';
+                if (user.is_admin === 1 && user.email === (window.lastAdminUsers && window.lastAdminUsers[0] && window.lastAdminUsers[0].email ? window.lastAdminUsers[0].email : '')) {
+                  role = '<span style="color:#fbbf24">Owner</span>';
+                } else if (user.is_admin === 3) {
+                  role = '<span style="color:#3b82f6">Admin</span>';
+                } else if (user.is_admin === 2) {
+                  role = '<span style="color:#8b5cf6">Staff</span>';
+                }
+                return `
+                  <div class="user-item">
+                    <img src="${user.avatar_url || '/storage/images/main/profile.png'}" alt="Profile" style="width:40px;height:40px;border-radius:50%;margin-right:12px;object-fit:cover;">
+                    <div class="info">
+                      <div class="email"><b>${user.username || 'No username'}</b> <span style="color:#99aabb;font-size:0.8em;">(${user.email})</span></div>
+                      <div class="meta">
+                        Joined: ${date.toLocaleDateString()} • School: ${user.school || 'N/A'} • Age: ${user.age || 'N/A'} ${role}
+                        <br>IP: ${user.ip || 'N/A'}
+                      </div>
+                    </div>
+                    <button class="btn btn-secondary" onclick="manageUser('${user.id}')">Manage</button>
                   </div>
-                </div>
-              `;
-            }).join('');
-          } else {
-            list.innerHTML = '<div style="color: #99aabb; text-align: center; padding: 20px;">No users found</div>';
+                `;
+              }).join('');
+            } else {
+              list.innerHTML = '<div style="color: #99aabb; text-align: center; padding: 20px;">No users found</div>';
+            }
           }
+          renderUsers();
+          searchInput.oninput = e => renderUsers(e.target.value);
         }
       } catch (error) {
         console.error('Failed to load users:', error);
       }
     }
+
+    window.manageUser = function(userId) {
+      const user = (window.lastAdminUsers || []).find(u => u.id === userId);
+      if (!user) {
+        showPopup('User not found', 'error');
+        return;
+      }
+      currentAdminUserId = userId;
+      const modal = document.getElementById('admin-user-modal');
+      const content = document.getElementById('admin-user-modal-content');
+      let role = '';
+      if (user.is_admin === 1 && user.email === (window.lastAdminUsers && window.lastAdminUsers[0] && window.lastAdminUsers[0].email ? window.lastAdminUsers[0].email : '')) {
+        role = '<span style="color:#fbbf24">Owner</span>';
+      } else if (user.is_admin === 3) {
+        role = '<span style="color:#3b82f6">Admin</span>';
+      } else if (user.is_admin === 2) {
+        role = '<span style="color:#8b5cf6">Staff</span>';
+      }
+      content.innerHTML = `
+        <div style='display:flex;align-items:center;gap:12px;margin-bottom:10px;'>
+          <img src="${user.avatar_url || '/storage/images/main/profile.png'}" alt="Profile" style="width:48px;height:48px;border-radius:50%;object-fit:cover;">
+          <div>
+            <b>${user.username || 'No username'}</b><br>
+            <span style='color:#99aabb;font-size:0.9em;'>${user.email}</span>
+          </div>
+        </div>
+        <div style='color:#99aabb;font-size:0.95em;'>School: ${user.school || 'N/A'}<br>Age: ${user.age || 'N/A'}<br>Joined: ${new Date(user.created_at).toLocaleDateString()}<br>IP: ${user.ip || 'N/A'}<br>${role}</div>
+      `;
+      modal.style.display = 'flex';
+    };
+
+    document.getElementById('close-admin-user-modal').onclick = () => {
+      document.getElementById('admin-user-modal').style.display = 'none';
+      currentAdminUserId = null;
+    };
+
+    async function adminUserAction(action) {
+      if (!currentAdminUserId) return;
+      let confirmMsg = '';
+      if (action === 'delete') confirmMsg = 'Are you sure you want to permanently delete this user? This cannot be undone.';
+      if (action === 'ban') confirmMsg = 'Are you sure you want to ban this user and their IP?';
+      if (action === 'suspend') confirmMsg = 'Suspend this user? They will not be able to log in.';
+      if (action === 'staff') confirmMsg = 'Make this user staff? They will gain staff privileges.';
+      if (confirmMsg && !confirm(confirmMsg)) return;
+      try {
+        const response = await fetch(`/api/admin/user-action`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ userId: currentAdminUserId, action })
+        });
+        const data = await response.json();
+        if (response.ok) {
+          showPopup(data.message || 'Action successful', 'success');
+          document.getElementById('admin-user-modal').style.display = 'none';
+          loadUsers();
+        } else {
+          showPopup(data.error || 'Action failed', 'error');
+        }
+      } catch (e) {
+        showPopup('Network error', 'error');
+      }
+    }
+
+    document.getElementById('make-staff-btn').onclick = () => adminUserAction('staff');
+    document.getElementById('suspend-user-btn').onclick = () => adminUserAction('suspend');
+    document.getElementById('ban-user-btn').onclick = () => adminUserAction('ban');
+    document.getElementById('delete-user-btn').onclick = () => adminUserAction('delete');
 
     document.getElementById('upload-btn')?.addEventListener('click', async () => {
       const fileInput = document.getElementById('profile-upload');
@@ -698,7 +827,53 @@
       }
     });
 
+    function openInIframe(url) {
+      try {
+        if (window.parent !== window && window.parent.postMessage) {
+          window.parent.postMessage({ type: 'navigate', url }, '*');
+        } else {
+          window.location.href = url;
+        }
+      } catch {
+        window.location.href = url;
+      }
+    }
+    document.getElementById('save-extra-btn').addEventListener('click', async () => {
+      const favGames = document.getElementById('favorite-games').value;
+      localStorage.setItem('favorite_games', favGames);
+      showPopup('Extras saved!', 'success');
+    });
+    window.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('favorite-games').value = localStorage.getItem('favorite_games') || '';
+    });
+    (async function() {
+      try {
+        const r = await fetch('/api/profile', { credentials: 'include' });
+        if (r.ok && window.location.pathname.endsWith('/p.html')) {
+          window.location.href = '/pages/settings/p2.html';
+        }
+      } catch {}
+    })();
+
+    // Quick Proxy & Tools button logic
+    document.querySelectorAll('.quick-proxy-btn').forEach(btn => {
+      btn.onclick = function(e) {
+        e.preventDefault();
+        const url = btn.getAttribute('data-url') || btn.href;
+        if (window.parent !== window && window.parent.postMessage) {
+          window.parent.postMessage({ type: 'navigate', url }, '*');
+        } else {
+          window.location.href = url;
+        }
+      };
+    });
+
     loadProfile();
   </script>
+  <style>
+    .admin-section, .admin-section .section-title {
+      color: #fff !important;
+    }
+  </style>
 </body>
 </html>

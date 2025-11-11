@@ -16,6 +16,9 @@ import dotenv from "dotenv";
 import fileUpload from "express-fileupload";
 import { signupHandler } from "./server/api/signup.js";
 import { signinHandler } from "./server/api/signin.js";
+import { adminUserActionHandler } from './server/api/admin-user-action.js';
+import { addCommentHandler, getCommentsHandler } from './server/api/comments.js';
+import { likeHandler, getLikesHandler } from './server/api/likes.js';
 import db from "./server/db.js";
 import bcrypt from "bcrypt";
 import cors from "cors";
@@ -161,8 +164,58 @@ app.get("/results/:query", async (req, res) => {
   }
 });
 
-app.post("/api/signup", signupHandler);
+function isOwner(user) {
+  return user && user.is_admin === 1 && user.email === process.env.ADMIN_EMAIL;
+}
+
+// Add stricter rate limits for signup and profile-pic upload
+const signupLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 3, // 3 signups per IP per hour
+  message: "Too many accounts created from this IP, try again later."
+});
+app.post("/api/signup", signupLimiter, signupHandler);
+
+const pfpLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // 5 uploads per user per hour
+  keyGenerator: req => req.session.user?.id || req.ip,
+  message: "Too many profile picture uploads, try again later."
+});
+app.post("/api/upload-profile-pic", pfpLimiter, (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  try {
+    const file = req.files?.file;
+    if (!file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+    const userId = req.session.user.id;
+    const uploadsDir = path.join(__dirname, 'public', 'uploads', 'profile-pics', userId);
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    const fileName = `${Date.now()}-${file.name}`;
+    const filePath = path.join(uploadsDir, fileName);
+    fs.writeFileSync(filePath, file.data);
+    const avatarUrl = `/uploads/profile-pics/${userId}/${fileName}`;
+    const now = Date.now();
+    db.prepare('UPDATE users SET avatar_url = ?, updated_at = ? WHERE id = ?').run(avatarUrl, now, userId);
+    req.session.user.avatar_url = avatarUrl;
+    return res.status(200).json({ url: avatarUrl });
+  } catch (error) {
+    console.error('Upload error:', error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 app.post("/api/signin", signinHandler);
+app.post('/api/admin/user-action', adminUserActionHandler);
+app.post('/api/comment', addCommentHandler);
+app.get('/api/comments', getCommentsHandler);
+app.post('/api/like', likeHandler);
+app.get('/api/likes', getLikesHandler);
 app.get("/api/verify-email", (req, res) => {
   const { token } = req.query;
   if (!token) {
@@ -194,6 +247,14 @@ app.get("/api/profile", (req, res) => {
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
+    let role = 'User';
+    if (user.is_admin === 1 && user.email === process.env.ADMIN_EMAIL) {
+      role = 'Owner';
+    } else if (user.is_admin === 3) {
+      role = 'Admin';
+    } else if (user.is_admin === 2) {
+      role = 'Staff';
+    }
     return res.status(200).json({ user: {
       id: user.id,
       email: user.email,
@@ -204,37 +265,11 @@ app.get("/api/profile", (req, res) => {
       },
       app_metadata: {
         provider: 'email',
-        is_admin: user.is_admin === 1
+        is_admin: user.is_admin,
+        role
       }
     }});
   } catch (error) {
-    return res.status(500).json({ error: "Internal server error" });
-  }
-});
-app.post("/api/upload-profile-pic", (req, res) => {
-  if (!req.session.user) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-  try {
-    const file = req.files?.file;
-    if (!file) {
-      return res.status(400).json({ error: "No file uploaded" });
-    }
-    const userId = req.session.user.id;
-    const uploadsDir = path.join(__dirname, 'public', 'uploads', 'profile-pics', userId);
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-    const fileName = `${Date.now()}-${file.name}`;
-    const filePath = path.join(uploadsDir, fileName);
-    fs.writeFileSync(filePath, file.data);
-    const avatarUrl = `/uploads/profile-pics/${userId}/${fileName}`;
-    const now = Date.now();
-    db.prepare('UPDATE users SET avatar_url = ?, updated_at = ? WHERE id = ?').run(avatarUrl, now, userId);
-    req.session.user.avatar_url = avatarUrl;
-    return res.status(200).json({ url: avatarUrl });
-  } catch (error) {
-    console.error('Upload error:', error);
     return res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -416,17 +451,31 @@ app.get("/api/admin/users", (req, res) => {
     return res.status(401).json({ error: "Unauthorized" });
   }
   try {
-    const user = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(req.session.user.id);
-    if (!user || !user.is_admin) {
+    const user = db.prepare('SELECT is_admin, email FROM users WHERE id = ?').get(req.session.user.id);
+    if (!user || !(user.is_admin === 1 && user.email === process.env.ADMIN_EMAIL || user.is_admin === 2 || user.is_admin === 3)) {
       return res.status(403).json({ error: "Admin access required" });
     }
     const users = db.prepare(`
-      SELECT id, email, username, created_at, is_admin
+      SELECT id, email, username, created_at, is_admin, avatar_url, bio, school, age
       FROM users
       ORDER BY created_at DESC
       LIMIT 100
     `).all();
-    return res.status(200).json({ users });
+    const usersWithExtras = users.map(u => {
+      let ip = null;
+      if (user.is_admin === 1 && user.email === process.env.ADMIN_EMAIL) {
+        ip = u.ip || 'N/A';
+      } else {
+        ip = 'N/A';
+      }
+      return {
+        ...u,
+        ip,
+        signup_link: null,
+        role: (u.is_admin === 1 && u.email === process.env.ADMIN_EMAIL) ? 'Owner' : (u.is_admin === 3 ? 'Admin' : (u.is_admin === 2 ? 'Staff' : 'User'))
+      };
+    });
+    return res.status(200).json({ users: usersWithExtras });
   } catch (error) {
     console.error('Admin users error:', error);
     return res.status(500).json({ error: "Internal server error" });

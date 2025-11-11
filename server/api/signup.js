@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 import { randomUUID } from 'crypto';
 
 export async function signupHandler(req, res) {
-  const { email, password } = req.body;
+  const { email, password, school, age } = req.body;
   
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required' });
@@ -24,13 +24,17 @@ export async function signupHandler(req, res) {
     const userId = randomUUID();
     const now = Date.now();
 
+    let ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.connection?.remoteAddress || null;
+    if (ip && typeof ip === 'string' && ip.includes(',')) ip = ip.split(',')[0].trim();
+    if (ip && ip.startsWith('::ffff:')) ip = ip.replace('::ffff:', '');
+
     const isFirstUser = db.prepare('SELECT COUNT(*) AS count FROM users').get().count === 0;
     const isAdmin = isFirstUser || email === process.env.ADMIN_EMAIL;
 
     db.prepare(`
-      INSERT INTO users (id, email, password_hash, created_at, updated_at, is_admin, email_verified)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(userId, email, passwordHash, now, now, isAdmin ? 1 : 0, 1);
+      INSERT INTO users (id, email, password_hash, created_at, updated_at, is_admin, email_verified, school, age, ip)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(userId, email, passwordHash, now, now, isAdmin ? 1 : 0, 1, school || null, age || null, ip);
 
     res.status(201).json({ 
       message: isFirstUser 

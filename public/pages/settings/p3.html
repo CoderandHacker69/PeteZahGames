@@ -103,6 +103,16 @@
           <label class="form-label">Confirm Password</label>
           <input type="password" id="confirm-password" class="form-input" placeholder="Confirm your password" required>
         </div>
+        <!--
+        <div class="form-group">
+          <label class="form-label">School</label>
+          <input type="text" id="school" class="form-input" placeholder="Enter your school (optional)">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Age</label>
+          <input type="number" id="age" class="form-input" placeholder="Enter your age (optional)" min="1" max="120">
+        </div>
+        -->
         <div class="form-options">
           <label class="remember-me"><input type="checkbox" id="remember">Remember me</label>
           <a href="/pages/settings/p.html" class="signin-link">Sign in</a>
@@ -118,31 +128,29 @@
       const email = document.getElementById('email').value;
       const password = document.getElementById('password').value;
       const confirmPassword = document.getElementById('confirm-password').value;
-      
+      const schoolInput = document.getElementById('school');
+      const ageInput = document.getElementById('age');
+      const school = schoolInput ? schoolInput.value : null;
+      const age = ageInput ? ageInput.value : null;
       if (password !== confirmPassword) {
         showPopup('Passwords do not match', 'error');
         return;
       }
-      
       if (password.length < 8) {
         showPopup('Password must be at least 8 characters', 'error');
         return;
       }
-      
       const submitBtn = document.getElementById('submit-btn');
       submitBtn.disabled = true;
       submitBtn.textContent = 'Creating account...';
-      
       try {
         const response = await fetch('/api/signup', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify({ email, password, school, age }),
         });
-        
         const data = await response.json();
-        
         if (response.ok) {
           showPopup(data.message, 'success');
           setTimeout(() => {
@@ -167,7 +175,6 @@
         submitBtn.textContent = 'Sign Up';
       }
     });
-    
     if (window.parent !== window) {
       document.body.style.minHeight = '100vh';
     }

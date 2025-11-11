@@ -47,6 +47,15 @@ try {
   if (!columnNames.includes('is_admin')) {
     db.exec('ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0');
   }
+  if (!columnNames.includes('school')) {
+    db.exec('ALTER TABLE users ADD COLUMN school TEXT');
+  }
+  if (!columnNames.includes('age')) {
+    db.exec('ALTER TABLE users ADD COLUMN age INTEGER');
+  }
+  if (!columnNames.includes('ip')) {
+    db.exec('ALTER TABLE users ADD COLUMN ip TEXT');
+  }
 } catch (error) {
   console.error('Migration error:', error);
 }
@@ -83,6 +92,26 @@ db.exec(`
     user_id TEXT NOT NULL,
     created_at INTEGER NOT NULL,
     expires_at INTEGER NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS comments (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL, -- 'changelog' or 'feedback'
+    target_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS likes (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL, -- 'changelog' or 'feedback'
+    target_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    UNIQUE(type, target_id, user_id),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 

@@ -282,6 +282,18 @@
     </div>
   </div>
 
+  <div class="modal" id="comment-modal" style="display:none;">
+    <div class="modal-content">
+      <button class="modal-close" id="close-comment-modal"><i class="fas fa-times"></i></button>
+      <h2 style="margin-bottom: 18px; font-size: 1.2rem; font-weight: 600;">Comments</h2>
+      <div id="comment-modal-list" style="max-height:200px;overflow-y:auto;margin-bottom:12px;"></div>
+      <form id="comment-form">
+        <textarea id="comment-content" placeholder="Add a comment..." required style="width:100%;background:transparent;border:1px solid #445566;color:#fff;padding:8px;border-radius:8px;"></textarea>
+        <button type="submit" class="btn btn-full" id="submit-comment-btn" style="margin-top:10px;"><i class="fas fa-paper-plane"></i> Post</button>
+      </form>
+    </div>
+  </div>
+
   <script src="/storage/js/popup.js"></script>
   <script>
     let isAdmin = false;
@@ -318,6 +330,11 @@
                 </div>
                 <div class="meta">By ${item.author_name || 'PeteZah'} • ${date.toLocaleDateString()}</div>
                 <div class="content">${item.content}</div>
+                <div style="margin-top:12px;display:flex;gap:12px;">
+                  <button class="btn" style="background:#232b36;color:#3b82f6;padding:4px 18px;font-size:1em;box-shadow:0 1px 4px rgba(59,130,246,0.04);" onclick="likeChangelog('${item.id}', this)"><i class="fa fa-thumbs-up"></i> <span class="like-count" data-id="${item.id}">0</span></button>
+                  <button class="btn" style="background:#232b36;padding:4px 18px;font-size:1em;box-shadow:0 1px 4px rgba(139,92,246,0.04);" onclick="openCommentModal('changelog','${item.id}')"><i class="fa fa-comment" style="color:#fff;"></i></button>
+                </div>
+                <div class="comments-list" id="comments-changelog-${item.id}" style="margin-top:10px;"></div>
               </div>
             `;
           }).join('');
@@ -327,6 +344,65 @@
       } catch (error) {
         showPopup('Failed to load changelog', 'error');
       }
+    }
+
+    function likeChangelog(id, btn) {
+      fetch('/api/like', {method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({type:'changelog',targetId:id})})
+        .then(r=>r.json()).then(d=>{
+          showPopup(d.message||'Liked!','success');
+          loadChangelogLikes();
+        });
+    }
+
+    function loadChangelogLikes() {
+      document.querySelectorAll('.like-count[data-id]').forEach(async el => {
+        const id = el.getAttribute('data-id');
+        const r = await fetch(`/api/likes?type=changelog&targetId=${id}`);
+        const d = await r.json();
+        el.textContent = d.count||0;
+      });
+    }
+
+    function openCommentModal(type, id) {
+      window._commentType = type;
+      window._commentTarget = id;
+      document.getElementById('comment-modal').style.display = 'flex';
+      loadComments(type, id);
+    }
+
+    document.getElementById('close-comment-modal').onclick = () => {
+      document.getElementById('comment-modal').style.display = 'none';
+    };
+
+    document.getElementById('comment-form').onsubmit = async function(e) {
+      e.preventDefault();
+      const content = document.getElementById('comment-content').value.trim();
+      if (!content) return showPopup('Please enter a comment','error');
+      const btn = document.getElementById('submit-comment-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Posting...';
+      const r = await fetch('/api/comment', {method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({type:window._commentType,targetId:window._commentTarget,content})});
+      const d = await r.json();
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-paper-plane"></i> Post';
+      if (r.ok) {
+        showPopup('Comment posted','success');
+        document.getElementById('comment-content').value = '';
+        loadComments(window._commentType,window._commentTarget);
+      } else {
+        showPopup(d.error||'Failed to post','error');
+      }
+    };
+
+    function loadComments(type, id) {
+      fetch(`/api/comments?type=${type}&targetId=${id}`).then(r=>r.json()).then(d=>{
+        const list = document.getElementById('comment-modal-list');
+        if (d.comments && d.comments.length) {
+          list.innerHTML = d.comments.map(c=>`<div style='margin-bottom:8px;'><img src='${c.avatar_url||'/storage/images/main/profile.png'}' style='width:24px;height:24px;border-radius:50%;vertical-align:middle;margin-right:6px;'><b>${c.username||'User'}</b>: <span style='color:#fff;'>${c.content}</span></div>`).join('');
+        } else {
+          list.innerHTML = '<div style="color:#99aabb;">No comments yet.</div>';
+        }
+      });
     }
 
     document.getElementById('add-btn').addEventListener('click', () => {
@@ -374,6 +450,7 @@
 
     checkAdmin();
     loadChangelog();
+    setTimeout(loadChangelogLikes, 500);
   </script>
 </body>
 </html>
