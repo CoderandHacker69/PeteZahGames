@@ -83,7 +83,6 @@ If you would like to use one of the following buttons to deploy
 ### **Lightspeed**
 
 - [supergisfire.com.cdn.cloudflare.net](https://supergisfire.com.cdn.cloudflare.net)  
-- [51.222.141.36.ip.addr.tools](https://51.222.141.36.ip.addr.tools)  
 - [ffd.travelpage.biz](https://ffd.travelpage.biz)  
 - [snoopyshouldbeadmintrust.jobvn.com](https://snoopyshouldbeadmintrust.jobvn.com)  
 - [reallyhardenglishcourses.neo-space.space](https://reallyhardenglishcourses.neo-space.space)  
